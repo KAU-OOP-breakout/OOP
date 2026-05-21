@@ -124,4 +124,8 @@ abstract class GameObject(
      * 텍스처를 쓰는 객체라면 override 해서 texture.dispose() 를 호출.
      */
     open fun dispose() {}
+
+    open fun die() {
+        // 내용은 비워둬도 됩니다. 자식 클래스들이 알아서 내용을 채울 테니까요.
+    }
 }
