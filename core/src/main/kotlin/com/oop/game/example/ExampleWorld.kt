@@ -7,6 +7,9 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.oop.game.GameWorld
 import com.oop.game.InputHandler
 import kotlin.math.floor
+import kotlin.math.min
+import kotlin.math.sign
+
 
 /**
  * ════════════════════════════════════════════════════════════
@@ -52,6 +55,15 @@ class ExampleWorld(
     worldHeight: Float
 ) : GameWorld(screenWidth, screenHeight, worldWidth, worldHeight) {
 
+
+
+
+
+
+
+    var hp = 3
+    val randomdirection = listOf(-1f, -1.5f, -2f)
+
     /**
      * 게임의 현재 상태를 나타내는 열거형.
      *
@@ -63,25 +75,111 @@ class ExampleWorld(
      */
     private enum class GameState {
         IN_PLAY,
-        GAME_OVER
+        GAME_OVER,
+        PAUSE,
+        CLEAR
     }
 
     // 플레이어 — 월드 중앙 하단에서 시작.
     //   월드 크기를 함께 넘겨서, 경계 밖으로 못 나가게 한다.
-    private val player = ExamplePlayer(
-        x = worldWidth / 2 - 15f,   // 가로 30 의 절반을 빼서 정확히 중앙
+    private val player = player(
+        x = worldWidth / 2 - 20f,   // 가로 30 의 절반을 빼서 정확히 중앙
         y = 50f,
         worldWidth = worldWidth,
         worldHeight = worldHeight
     )
 
-    // 적 — 월드 상단에서 좌우 왕복.
-    private val enemy = ExampleEnemy(
-        x = 100f,
-        y = worldHeight - 100f,
-        minX = 0f,
-        maxX = worldWidth
+    private val block = block(
+        x = worldWidth / 2 - 50f,
+        y = worldHeight - 50f,
     )
+
+    private val block1 = block(
+        x = worldWidth / 2 - 160f,
+        y = worldHeight - 50f,
+    )
+
+    private val block2 = bonusblock(
+        x = worldWidth / 2 - 270f,
+        y = worldHeight - 50f,
+        bonus = 0
+    )
+
+    private val block3 = block(
+        x = worldWidth / 2 + 60f,
+        y = worldHeight - 50f,
+    )
+
+    private val block4 = block(
+        x = worldWidth / 2 + 170f,
+        y = worldHeight - 50f,
+    )
+
+    private val underblock = bonusblock(
+        x = worldWidth / 2 - 50f,
+        y = worldHeight - 110f,
+        bonus = 0
+    )
+
+    private val underblock1 = block(
+        x = worldWidth / 2 - 160f,
+        y = worldHeight - 110f,
+    )
+
+    private val underblock2 = block(
+        x = worldWidth / 2 - 270f,
+        y = worldHeight - 110f,
+    )
+
+    private val underblock3 = block(
+        x = worldWidth / 2 + 60f,
+        y = worldHeight - 110f,
+    )
+
+    private val underblock4 = block(
+        x = worldWidth / 2 + 170f,
+        y = worldHeight - 110f,
+    )
+
+    private val bottomblock = block(
+        x = worldWidth / 2 - 50f,
+        y = worldHeight - 170f,
+    )
+
+    private val bottomblock1 = block(
+        x = worldWidth / 2 - 160f,
+        y = worldHeight - 170f,
+    )
+
+    private val bottomblock2 = block(
+        x = worldWidth / 2 - 270f,
+        y = worldHeight - 170f,
+    )
+
+    private val bottomblock3 = block(
+        x = worldWidth / 2 + 60f,
+        y = worldHeight - 170f,
+    )
+
+    private val bottomblock4 = bonusblock(
+        x = worldWidth / 2 + 170f,
+        y = worldHeight - 170f,
+        bonus = 0
+    )
+
+    private val ball = ball(
+        x= worldWidth/2,
+        y= worldHeight/2,
+        maxX = worldWidth,
+        maxY = worldHeight,
+        minX = 0f,
+        minY = 0f,
+        random = -1f,
+    )
+
+
+
+    // 적 — 월드 상단에서 좌우 왕복.
 
     // 현재 게임 상태 — 입력/충돌에 따라 IN_PLAY ↔ GAME_OVER 로 전환된다.
     private var state = GameState.IN_PLAY
@@ -103,9 +201,25 @@ class ExampleWorld(
      */
     init {
         add(player)
-        add(enemy)
+        add(block)
+        add(block1)
+        add(block2)
+        add(block3)
+        add(block4)
+        add(underblock)
+        add(underblock1)
+        add(underblock2)
+        add(underblock3)
+        add(underblock4)
+        add(bottomblock)
+        add(bottomblock1)
+        add(bottomblock2)
+        add(bottomblock3)
+        add(bottomblock4)
+        add(ball)
     }
 
+    val blocks = listOf(block, block1, block2, block3, block4, underblock, underblock1, underblock2, underblock3, underblock4, bottomblock, bottomblock1, bottomblock2, bottomblock3, bottomblock4)
     /**
      * 매 프레임 게임 로직 — 모든 '입력 처리·상태 변경' 은 이 안에서.
      *
@@ -118,18 +232,17 @@ class ExampleWorld(
         when (state) {
             GameState.IN_PLAY -> updateInPlay(delta)
             GameState.GAME_OVER -> updateGameOver()
+            GameState.PAUSE -> updatePause()
+            GameState.CLEAR -> updateClear()
         }
     }
 
     /** IN_PLAY 상태에서 매 프레임 처리 — 카메라 이동, 객체 갱신, 충돌 체크. */
     private fun updateInPlay(delta: Float) {
-        // ── 카메라 이동 (WASD) ──
-        //   offsetX/Y 를 바꾸면 카메라가 월드 안에서 움직인다.
-        val cameraSpeed = 200f * delta
-        if (InputHandler.isKeyPressed(InputHandler.W)) offsetY += cameraSpeed
-        if (InputHandler.isKeyPressed(InputHandler.S)) offsetY -= cameraSpeed
-        if (InputHandler.isKeyPressed(InputHandler.A)) offsetX -= cameraSpeed
-        if (InputHandler.isKeyPressed(InputHandler.D)) offsetX += cameraSpeed
+
+        if (InputHandler.isKeyJustPressed(InputHandler.ESCAPE)) {
+            state = GameState.PAUSE
+        }
 
         // 카메라가 월드 경계 밖을 보여주지 않도록 clamp.
         //   보여주는 영역이 [offset, offset+screen] 이어야 하므로
@@ -140,16 +253,70 @@ class ExampleWorld(
         // ── 1) 게임 객체 갱신 — 각자 한 프레임씩 진행 ──
         updateAllObjects(delta)
 
+
+
+
         // ── 2) 상호작용 결정 — 누가 누구와 부딪혀 어떻게 되는지 ──
         //   collidesWith 는 GameObject 의 메서드 → 모든 게임 객체가 자동으로 가짐.
         //   이 예제에선 충돌 시 객체를 죽이지 않고 게임 상태만 바꾼다.
         //   (총알 게임이라면 여기서 bullet.kill(), enemy.kill() 같은 처리)
-        if (player.collidesWith(enemy)) {
+        if (ball.collidesWith(player)) {
+            val ballBounds = ball.getBounds()
+            val playerBounds = player.getBounds()
+            val Xcrash = min((ballBounds.width + playerBounds.width) - (player.x-ball.x+100f), (ballBounds.width + playerBounds.width) - (ball.x-player.x+40f))
+            val Ycrash = min((ballBounds.height + playerBounds.height) - (ball.y-player.y+40f), (ballBounds.height + playerBounds.height) - (player.y-ball.y+10f))
+
+            if (Xcrash < Ycrash) {
+                ball.directionx = ball.directionx*-1
+            }
+            if (Ycrash <= Xcrash) {
+                ball.directiony = ball.directiony*-1
+            }
+        }
+
+        for(b in blocks) {
+            if (!ball.collidesWith(b) || !b.isAlive()){
+                continue
+            }
+            if (b is bonusblock) {
+                if (b.bonus == 1) {
+                    b.die()
+                }
+                else {
+                    b.bonus = 1
+                }
+            }
+            else {
+                b.die()
+            }
+            val ballBounds = ball.getBounds()
+            val blockBounds = b.getBounds()
+
+            val Xcrash = min((ballBounds.width + blockBounds.width) - (b.x - ball.x + 100f), (ballBounds.width + blockBounds.width) - (ball.x - b.x + 40f))
+            val Ycrash = min((ballBounds.height + blockBounds.height) - (ball.y - b.y + 40f), (ballBounds.height + blockBounds.height) - (b.y - ball.y + 50f))
+
+            if (Xcrash < Ycrash) {
+                ball.directionx = ball.directionx.sign * ball.random
+                ball.random = randomdirection.random()
+            }
+            if (Ycrash <= Xcrash) {
+                ball.directiony = ball.directiony.sign * ball.random
+                ball.random = randomdirection.random()
+            }
+        }
+
+        if (ball.y <= 0f && hp !== 0) {
+            hp -= 1
+            state = GameState.PAUSE
+        }
+        else if (ball.y <= 0f && hp == 0)
             state = GameState.GAME_OVER
+
+        if (blocks.all{it.isAlive() == false}) {
+            state = GameState.CLEAR
         }
-        if (벽돌.collidesWith(공)) {
-            벽돌.die()
-        }
+
+
 
         // ── 3) 죽은 객체 정리 ──
         //   현재 예제에선 아무 것도 안 죽으므로 영향 없지만,
@@ -157,7 +324,6 @@ class ExampleWorld(
         removeDead()
     }
 
-    /** GAME_OVER 상태에서 매 프레임 처리 — ESC 입력만 감시한다. */
     private fun updateGameOver() {
         // ESC 키가 '막 눌린 순간' 앱 종료.
         //   isKeyJustPressed 로 한 이유: 누르고 있는 동안 매 프레임 exit 호출되지 않게.
@@ -165,6 +331,21 @@ class ExampleWorld(
             Gdx.app.exit()
         }
     }
+
+    private fun updatePause() {
+        if (InputHandler.isKeyJustPressed(InputHandler.ESCAPE)) {
+            state = GameState.IN_PLAY
+        }
+    }
+
+    private fun updateClear() {
+        if (InputHandler.isKeyJustPressed(InputHandler.ESCAPE)) {
+            Gdx.app.exit()
+        }
+    }
+
+
+    /** GAME_OVER 상태에서 매 프레임 처리 — ESC 입력만 감시한다. */
 
     /**
      * 배경 그리기 — GameWorld.drawBackground(batch) 를 override.
@@ -225,6 +406,10 @@ class ExampleWorld(
                 // 플레이 중에는 추가로 그릴 것 없음
             }
             GameState.GAME_OVER -> drawGameOverOverlay()
+
+            GameState.PAUSE -> drawPauseOverlay()
+
+            GameState.CLEAR -> drawClearOverlay()
         }
     }
 
@@ -232,23 +417,31 @@ class ExampleWorld(
     private fun drawHud() {
         // 1) UI 텍스트 (화면 고정) — 좌측 상단 HP 표시.
         //    카메라가 움직여도 항상 이 위치에 있다.
-        drawTextOnScreen(
-            text = "HP: 3",
-            x = 10f,
-            y = screenHeight - 10f,   // 화면 y 축은 위로 증가 → 맨 위가 screenHeight
-            color = Color.YELLOW,
-            scale = 1.2f
-        )
+        if(state !== GameState.IN_PLAY)
+
+        else {
+            if (hp == 3 || hp == 2 || hp == 1) {
+                drawTextOnScreen(
+                    text = "HP: $hp",
+                    x = 10f,
+                    y = screenHeight - 10f,   // 화면 y 축은 위로 증가 → 맨 위가 screenHeight
+                    color = Color.YELLOW,
+                    scale = 1.5f
+                )
+
+                drawTextInWorld(
+                    text = "Pause to ESC",
+                    worldX = screenWidth / 2 - 80f,
+                    worldY = screenHeight / 2,
+                    color = Color.WHITE,
+                    scale = 2f
+                )
+            }
+        }
 
         // 2) 월드 텍스트 (월드 좌표) — 월드 정중앙에 "WORLD CENTER".
         //    WASD 로 카메라를 움직이면 이 글자도 화면에서 움직인다.
-        drawTextInWorld(
-            text = "WORLD CENTER",
-            worldX = worldWidth / 2 - 70f,
-            worldY = worldHeight / 2,
-            color = Color.CYAN,
-            scale = 1.5f
-        )
+
     }
 
     /** 게임 오버 시 화면 중앙에 띄우는 안내 메시지. */
@@ -264,6 +457,40 @@ class ExampleWorld(
             text = "Press ESC to exit",
             x = screenWidth / 2 - 70f,
             y = screenHeight / 2 - 40f,
+            color = Color.WHITE,
+            scale = 1f
+        )
+    }
+
+    private fun drawPauseOverlay() {
+        drawTextOnScreen(
+            text = "PAUSE\nLeft HP$hp",
+            x = screenWidth / 2 - 80f,
+            y = screenHeight / 2,
+            color = Color.WHITE,
+            scale = 2f
+        )
+        drawTextOnScreen(
+            text = "Press ESC to continue",
+            x = screenWidth / 2 - 70f,
+            y = screenHeight / 2 - 80f,
+            color = Color.WHITE,
+            scale = 1f
+        )
+    }
+
+    private fun drawClearOverlay() {
+        drawTextOnScreen(
+            text = "Clear!\nEvery block break",
+            x = screenWidth / 2 - 80f,
+            y = screenHeight / 2,
+            color = Color.WHITE,
+            scale = 2f
+        )
+        drawTextOnScreen(
+            text = "Press ESC to exit",
+            x = screenWidth / 2 - 70f,
+            y = screenHeight / 2 - 80f,
             color = Color.WHITE,
             scale = 1f
         )
